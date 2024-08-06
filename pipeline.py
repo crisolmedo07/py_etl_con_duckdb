@@ -83,7 +83,7 @@ def guardar_en_postgres(df_duckdb , tabla):
 def pipeline():
     url_gd = "https://drive.google.com/drive/folders/19flL9P8UV9aSu4iQtM6Ymv-77VtFcECP"
     dir_local = "./file_down"
-    #bajar_archivos_google_drive(url_gd , dir_local)
+    bajar_archivos_google_drive(url_gd , dir_local)
     con = conectar_banco()
     inicializar_tabla(con)
     procesados = archivos_procesados(con)
