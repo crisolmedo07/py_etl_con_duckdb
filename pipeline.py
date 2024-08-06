@@ -4,11 +4,36 @@ import duckdb
 import pandas as pd 
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
-
 from duckdb import DuckDBPyRelation
 from pandas import DataFrame
+from datetime import datetime
+
 
 load_dotenv() # cargar variable de ambiente
+
+def conectar_banco():
+    """"Conecta al banco de datos DuckDB, crea el banco si no existe"""
+    return duckdb.connect(database='duckdb.db' , read_only=False)
+
+def inicializar_tabla(con):
+    """"Crea una tabla si no existe"""
+    con.execute("""
+        create table if not exists historico_archivo (
+            nombre_archivo varchar,
+            horario_procesamiento timestamp
+        )   
+    """)
+
+def registra_archivo(con , nombre_archivo):
+    """"Registra un nuevo archivo en el BD con el horario actual"""
+    con.execute("""
+        insert into historico_archivo (nombre_archivo , horario_procesamiento)
+        values (? , ?)
+    """, (nombre_archivo , datetime.now()) )
+
+def archivos_procesados(con):
+    """"Retorna un set con los nombres de todos los archivos ya procesados"""
+    return set(row[0] for row in con.execute("select nombre_archivo from historico_archivo").fetchall())
 
 # descargar archivos del google drive, con una biblioteca no oficial a modo de ejemplo
 def bajar_archivos_google_drive(url_gd , directorio_local):
@@ -53,9 +78,17 @@ if __name__ == "__main__":
     dir_local = "./file_down"
     #bajar_archivos_google_drive(url_gd , dir_local)
     lista_archivo = listar_archivos_csv(dir_local)
+    con = conectar_banco()
+    inicializar_tabla(con)
+    procesado = archivos_procesados(con)
 
     for dir_archivo in lista_archivo:
-        dataframe_duckdb = leer_csv(dir_archivo)
-        pandas_df_transformado = transformar_dataframe(dataframe_duckdb)
-        guardar_en_postgres(pandas_df_transformado , 'vendas_calculado')
-
+        nombre_archivo = os.path.basename(dir_archivo)
+        if nombre_archivo not in procesado:
+            df = leer_csv(dir_archivo)
+            pandas_df_transformado = transformar_dataframe(df)
+            guardar_en_postgres(pandas_df_transformado , 'vendas_calculado')
+            registra_archivo(con , nombre_archivo)
+            print(f"Archivo {nombre_archivo} procesado y guardado")
+        else:
+            print(f"Archivo {nombre_archivo} ya fue procesado anteriormente")
