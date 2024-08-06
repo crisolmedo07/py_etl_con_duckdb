@@ -3,7 +3,7 @@
 ### Arquitectura del workshop
 ![Arquitectura del workshop](./pics/img_workshop.png)
 
-### Algoritm pipeline
+### Algoritmo pipeline
 ```mermaid
 flowchart TD
     A[Inicio] --> B[Cargar variables de entorno]
