@@ -41,21 +41,28 @@ def bajar_archivos_google_drive(url_gd , directorio_local):
     gdown.download_folder(url_gd , output = directorio_local , quiet = False , use_cookies = False)
 
 # listar archivos de solo de csv
-def listar_archivos_csv(directorio):
-    archivo_csv =[]
+def listar_archivos_tipos(directorio):
+    archivo_tipo=[]
     todos_los_archivos = os.listdir(directorio)
-    for archivo in todos_los_archivos:
-        if archivo.endswith(".csv"):
+    for archivo in todos_los_archivos: 
+        if archivo.endswith(".csv") or archivo.endswith(".json") or archivo.endswith(".parquet"):
             dir_completo = os.path.join(directorio , archivo)
-            archivo_csv.append(dir_completo) 
-    return archivo_csv
+            tipo = archivo.split(".")[-1]
+            archivo_tipo.append((dir_completo , tipo))
+    return archivo_tipo
 
 # Funcion para leer el archivo CSV e retornar un tipo de Dataframe duckdb
-def leer_csv(dir_archivo):
-    dataframe_duckdb = duckdb.read_csv(dir_archivo)
-    #print(dataframe_duckdb)
-    #print(type(dataframe_duckdb))
-    return dataframe_duckdb
+def leer_archivo(dir_archivo , tipo):
+    """Leer archivo de acuerdo al tipo que retorna el DataFrame"""
+    if tipo == "csv":
+        return duckdb.read_csv(dir_archivo)
+    elif tipo == "json":
+        return duckdb.read_json(dir_archivo)
+    elif tipo == "parquet":
+        return duckdb.read_parquet(dir_archivo)
+    else:
+        raise ValueError(f"Tipo de archivo no encontrado: {tipo}") 
+
 
 # Funcion para adicionar una columna de total de ventas como ejemplo
 def transformar_dataframe(df: DuckDBPyRelation) -> DataFrame: # tipaje de entrada y salida del objeto
@@ -73,22 +80,28 @@ def guardar_en_postgres(df_duckdb , tabla):
 
 
 # funcion principal
-if __name__ == "__main__":
+def pipeline():
     url_gd = "https://drive.google.com/drive/folders/19flL9P8UV9aSu4iQtM6Ymv-77VtFcECP"
     dir_local = "./file_down"
     #bajar_archivos_google_drive(url_gd , dir_local)
-    lista_archivo = listar_archivos_csv(dir_local)
     con = conectar_banco()
     inicializar_tabla(con)
-    procesado = archivos_procesados(con)
-
-    for dir_archivo in lista_archivo:
+    procesados = archivos_procesados(con)
+    lista_archivos = listar_archivos_tipos(dir_local)
+    logs = []
+    for dir_archivo , tipo in lista_archivos:
         nombre_archivo = os.path.basename(dir_archivo)
-        if nombre_archivo not in procesado:
-            df = leer_csv(dir_archivo)
+        if nombre_archivo not in procesados:
+            df = leer_archivo(dir_archivo , tipo)
             pandas_df_transformado = transformar_dataframe(df)
             guardar_en_postgres(pandas_df_transformado , 'vendas_calculado')
             registra_archivo(con , nombre_archivo)
             print(f"Archivo {nombre_archivo} procesado y guardado")
+            logs.append(f"Archivo {nombre_archivo} procesado y guardado")
         else:
             print(f"Archivo {nombre_archivo} ya fue procesado anteriormente")
+            logs.append(f"Archivo {nombre_archivo} ya fue procesado anteriormente")
+    return logs
+
+if __name__ == "__main__":
+    pipeline()
